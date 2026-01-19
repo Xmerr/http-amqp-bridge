@@ -5,7 +5,7 @@ import { BridgeError } from '../errors/index.js';
 export function createWebhookValidation(secret: string | undefined) {
   return function validateGitHubWebhook(
     request: FastifyRequest,
-    reply: FastifyReply,
+    _reply: FastifyReply,
     done: HookHandlerDoneFunction
   ): void {
     // Skip validation if no secret is configured

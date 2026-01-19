@@ -1,4 +1,4 @@
-import amqplib, { type Connection, type Channel } from 'amqplib';
+import amqplib from 'amqplib';
 import { BridgeError } from '../errors/index.js';
 
 export interface PublishResult {
@@ -9,8 +9,8 @@ export interface PublishResult {
 }
 
 export class AmqpService {
-  private connection: Connection | null = null;
-  private channel: Channel | null = null;
+  private connection: Awaited<ReturnType<typeof amqplib.connect>> | null = null;
+  private channel: Awaited<ReturnType<Awaited<ReturnType<typeof amqplib.connect>>['createChannel']>> | null = null;
   private reconnecting = false;
   private readonly reconnectDelay = 5000;
 
