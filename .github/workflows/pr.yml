@@ -1,13 +1,28 @@
-name: PR Check
+name: PR Quality Checks
 
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
 
 jobs:
-  test:
+  notify-pr-opened:
     runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
+    steps:
+      - name: Notify PR Opened
+        run: |
+          curl -X POST "${{ secrets.RABBITMQ_URL }}/publish/github/pr.opened" \
+            -H "CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}" \
+            -H "CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository": "${{ github.repository }}",
+              "action": "pr.opened"
+            }'
 
+  test-and-coverage:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,3 +41,40 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./coverage/
+          retention-days: 30
+
+  notify-result:
+    runs-on: ubuntu-latest
+    needs: [test-and-coverage]
+    if: always()
+    steps:
+      - name: Notify CI Success
+        if: needs.test-and-coverage.result == 'success'
+        run: |
+          curl -X POST "${{ secrets.RABBITMQ_URL }}/publish/github/ci.success" \
+            -H "CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}" \
+            -H "CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository": "${{ github.repository }}",
+              "action": "ci.success"
+            }'
+
+      - name: Notify CI Failure
+        if: needs.test-and-coverage.result != 'success'
+        run: |
+          curl -X POST "${{ secrets.RABBITMQ_URL }}/publish/github/ci.failure" \
+            -H "CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}" \
+            -H "CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository": "${{ github.repository }}",
+              "action": "ci.failure"
+            }'
